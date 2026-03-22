@@ -13,7 +13,7 @@ nodes:
    - generated
    - usage
   queue:
-   concurrency: 2
+   concurrency: 1
  op:LLM::VECTORIZE:
   desc: "{texts} -> {vectors}"
   in:

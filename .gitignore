@@ -1,1 +1,10 @@
 node_modules
+# Environment
+.env
+
+# Runtime data
+apps/
+cofounder/api/db/projects/
+cofounder/api/db/index/
+cofounder/api/db/storage/
+package-lock.json

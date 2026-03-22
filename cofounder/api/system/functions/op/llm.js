@@ -57,11 +57,13 @@ async function opLlmGen({ context, data }) {
 		parser = utils.parsers.parse.yaml;
 	}
 
-	const llm_fn = !process.env.LLM_PROVIDER
-		? utils.openai.inference
-		: process.env.LLM_PROVIDER.toLowerCase() === "openai"
-			? utils.openai.inference
-			: utils.anthropic.inference;
+	const provider = (process.env.LLM_PROVIDER || "openai").toLowerCase();
+	const llm_fn = {
+		"openai": utils.openai.inference,
+		"anthropic": utils.anthropic.inference,
+		"claude-cli": utils.claudeCli.inference,
+		"codex-cli": utils.codexCli.inference,
+	}[provider] || utils.openai.inference;
 
 	const { text, usage } = await llm_fn({
 		model: model,

@@ -6,11 +6,15 @@ import firebase from "@/utils/firebase.js";
 import storage from "@/utils/storage.js";
 import load from "@/utils/load.js";
 import anthropic from "@/utils/anthropic.js";
+import claudeCli from "@/utils/claude-cli.js";
+import codexCli from "@/utils/codex-cli.js";
 
 export default {
 	parsers,
 	openai,
 	anthropic,
+	claudeCli,
+	codexCli,
 	vectra,
 	render,
 	firebase,
