@@ -18,7 +18,10 @@ async function extractBackticks({ text }) {
 			lastBackticksIndex === -1 ||
 			lastBackticksIndex <= firstLineWithBackticksIndex
 		) {
-			throw new Error("> invalid : no backticks found");
+			console.warn(
+				"utils/parsers:extractBackticks: no fenced block found, falling back to raw text",
+			);
+			return { text: text.trim() };
 		}
 		const extractedContent = lines
 			.slice(firstLineWithBackticksIndex + 1, lastBackticksIndex)
@@ -27,9 +30,10 @@ async function extractBackticks({ text }) {
 		return { text: extractedContent };
 	} catch (error) {
 		console.error("utils/parsers:extractAndParse:error", error);
-		return null;
+		return { text: text?.trim?.() || "" };
 	}
 }
+
 async function extractBackticksMultiple({ text, delimiters }) {
 	try {
 		let found = {};
@@ -39,13 +43,51 @@ async function extractBackticksMultiple({ text, delimiters }) {
 			const firstLine = lines
 				.slice(cursor)
 				.findIndex((line) => line.includes(`\`\`\`${delim}`));
+
+			if (firstLine === -1) {
+				// Fallback: if this is the primary code delimiter (tsx/jsx/js),
+				// try to extract code-like content from the full text
+				if (["tsx", "jsx", "js"].includes(delim)) {
+					// Look for import/export statements as code indicators
+					const codeLines = text.split("\n");
+					const firstCodeLine = codeLines.findIndex((l) =>
+						/^\s*(import |export |const |function |\/\*|\/\/|"use )/.test(l),
+					);
+					if (firstCodeLine !== -1) {
+						// Find the last meaningful code line
+						let lastCodeLine = codeLines.length - 1;
+						while (lastCodeLine > firstCodeLine && codeLines[lastCodeLine].trim() === "") {
+							lastCodeLine--;
+						}
+						// Filter out any stray ``` lines
+						const extracted = codeLines
+							.slice(firstCodeLine, lastCodeLine + 1)
+							.filter((l) => !l.trim().startsWith("```"))
+							.join("\n");
+						if (extracted.trim().length > 50) {
+							console.warn(
+								`utils/parsers:extractBackticksMultiple: no \`\`\`${delim}\`\`\` found, used code-detection fallback`,
+							);
+							found[delim] = extracted;
+							continue;
+						}
+					}
+				}
+				found[delim] = "";
+				continue;
+			}
+
 			const textFromFirstLine = lines.slice(cursor).slice(firstLine);
 			const lastLine = textFromFirstLine
 				.slice(1)
 				.findIndex((line) => line.includes("```"));
-			// console.dir({ __debug__utils_parsers_backticksmultiple: `\`\`\`${delim}`, textFromFirstLine, lastLine })
+
+			if (lastLine === -1) {
+				found[delim] = textFromFirstLine.slice(1).join(`\n`);
+				continue;
+			}
 			found[delim] = textFromFirstLine.slice(1, lastLine + 1).join(`\n`);
-			cursor = lastLine - 1;
+			cursor = cursor + firstLine + lastLine + 2;
 		}
 		return found;
 	} catch (error) {
@@ -55,13 +97,14 @@ async function extractBackticksMultiple({ text, delimiters }) {
 }
 
 async function parseYaml({ generated, query }) {
-	const { text } = generated;
+	const text = typeof generated === "string" ? generated : generated?.text || "";
+	if (!text.trim()) {
+		throw new Error("parseYaml: empty generated text");
+	}
 	return yaml.parse(text);
 }
 
 async function editGenUi({ tsx }) {
-	// replace with p0 frontend editing blocks
-	// (handles iterating on components in live view , and functionalities like screenshot passed into api etc ...)
 	const genUi = {
 		sections: false,
 		views: false,
@@ -103,7 +146,6 @@ async function editGenUi({ tsx }) {
 }
 
 async function extractCodeDecorators({ code }) {
-	// swarm decorators from generated code to trigger swarm functions
 	const { pre, post } = { pre: 5, post: 15 };
 	const decorators = [];
 	const lines = code.split("\n");
@@ -114,7 +156,6 @@ async function extractCodeDecorators({ code }) {
 			const type = decoratorMatch[1].trim();
 			const description = decoratorMatch[2].trim();
 
-			// Extract snippet with padding
 			const startLine = Math.max(0, index - pre);
 			const endLine = Math.min(lines.length, index + post + 1);
 			const snippet =

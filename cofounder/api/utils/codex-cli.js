@@ -122,6 +122,8 @@ async function inference({
 	stream = process.stdout,
 }) {
 	const prompt = buildPrompt(messages);
+	// Force to a supported Codex CLI model
+	model = "gpt-5.1-codex-mini";
 
 	let lastError = null;
 
@@ -149,7 +151,7 @@ async function inference({
 			return {
 				text: result.text,
 				usage: {
-					model,
+					model: resolvedModel,
 					prompt_tokens: 0,
 					completion_tokens: 0,
 					total_tokens: 0,

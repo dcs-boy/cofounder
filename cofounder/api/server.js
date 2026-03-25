@@ -41,6 +41,7 @@ const new_project = {
 			: _slugify(argv.p || argv.project),
 	description: argv.description || argv.d || argv.desc || false,
 	aesthetics: argv.aesthetics || argv.a || argv.aesthetic || false,
+	resume: argv.resume || argv.r || false,
 };
 if (argv.file || argv.f) {
 	new_project.description = fs.readFileSync(argv.file || argv.f, "utf-8");
@@ -77,43 +78,42 @@ async function create_new_project() {
 	};
 	console.dir({ query }, { depth: null });
 
-	/*
-	// debug : to resume ----------------------------------------------------------
-	const data = await cofounder.system.run({
-		id: "op:PROJECT::STATE:LOAD",
-		context: {
-			...context,
-			project: new_project.project,
-		},
-		data: {},
-	});
-	await cofounder.system.run({
-		id: `seq:project:init:v1:resume`,
-		context: {
-			...context,
-			project: new_project.project,
-		},
-		data: merge(data, {
-			...query,
-			debug: {},
-		}),
-	});
-	----------------------------------------------------------
-	*/
-
-	await cofounder.system.run({
-		id: `seq:project:init:v1`,
-		context: {
-			...context,
-			project: new_project.project,
-		},
-		data: query,
-	});
+	if (new_project.resume !== false) {
+		// Resume from a specific step
+		const resume_step = parseInt(new_project.resume) || 0;
+		console.log(`\x1b[33m> Resuming from step ${resume_step}\x1b[0m`);
+		const data = await cofounder.system.run({
+			id: "op:PROJECT::STATE:LOAD",
+			context: {
+				...context,
+				project: new_project.project,
+			},
+			data: {},
+		});
+		await cofounder.system.run({
+			id: `seq:project:init:v1`,
+			context: {
+				...context,
+				project: new_project.project,
+				sequence: { resume: resume_step },
+			},
+			data: merge(data, {
+				...query,
+			}),
+		});
+	} else {
+		// Fresh start
+		await cofounder.system.run({
+			id: `seq:project:init:v1`,
+			context: {
+				...context,
+				project: new_project.project,
+			},
+			data: query,
+		});
+	}
 }
-// Call create_new_project if command args for init project are provided
-if (new_project.project && new_project.description) {
-	create_new_project();
-}
+// NOTE: create_new_project() moved after context initialization (see below)
 // ----------------------------------------------------------------------------------------------------
 
 // -------------------------------------------------------------- SERVER SETUP ------------------------
@@ -415,6 +415,11 @@ const streams = {
 	},
 };
 const context = { streams };
+
+// Call create_new_project if command args for init project are provided
+if (new_project.project && new_project.description) {
+	create_new_project();
+}
 
 io.on("connection", async (socket) => {
 	console.log("> user connected : ", socket.id);
